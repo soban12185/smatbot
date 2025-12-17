@@ -1,36 +1,56 @@
+import os
 import streamlit as st
 
+from dotenv import load_dotenv
 from langchain.tools import tool
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_google_genai import (
+    ChatGoogleGenerativeAI,
+    GoogleGenerativeAIEmbeddings,
+)
 
 from langchain_community.utilities import GoogleSerperAPIWrapper
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import FAISS
+import numpy as np
 
 
 # -----------------------------
-# SETUP LLM (OpenAI, API key only)
+# LOAD .env VARIABLES
 # -----------------------------
-# Before running: set environment variable OPENAI_API_KEY
-#   PowerShell:  $env:OPENAI_API_KEY="YOUR_OPENAI_KEY"
-from langchain_google_genai import ChatGoogleGenerativeAI
-import os
+load_dotenv()  # loads variables from .env into environment
 
-os.environ["GOOGLE_API_KEY"] = ""
-llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-flash",
-    temperature=0.7
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
+SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
+
+
+# -----------------------------
+# SETUP EMBEDDINGS (Gemini)
+# -----------------------------
+embeddings = GoogleGenerativeAIEmbeddings(
+    model="text-embedding-004",
+    google_api_key=GOOGLE_API_KEY,
 )
 
 
 # -----------------------------
-# 1. SEARCH TOOL
+# SETUP LLM (Gemini)
 # -----------------------------
-# Needs SERPER_API_KEY env var:
-#   PowerShell:  $env:SERPER_API_KEY="YOUR_SERPER_KEY"
-search = GoogleSerperAPIWrapper()
+llm = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash",
+    temperature=0.7,
+    google_api_key=GOOGLE_API_KEY,
+)
+
+
+# -----------------------------
+# 1. SEARCH TOOL (Serper)
+# -----------------------------
+search = GoogleSerperAPIWrapper(
+    serper_api_key=SERPER_API_KEY
+)
+
 
 @tool
 def web_search(query: str) -> str:
@@ -64,7 +84,6 @@ def rag_query(question: str, pdf_path: str) -> str:
     )
     chunks = splitter.split_documents(docs)
 
-    embeddings = OpenAIEmbeddings()
     db = FAISS.from_documents(chunks, embeddings)
 
     retrieved_docs = db.similarity_search(question, k=3)
@@ -77,25 +96,97 @@ def rag_query(question: str, pdf_path: str) -> str:
 
 
 # -----------------------------
-# 4. SERVICE LOOKUP
+# 4. SERVICE LOOKUP (with location, contact, Google Maps)
 # -----------------------------
 def service_lookup(query: str) -> str:
-    database = {
-        "catering": "Top catering services near you: A1 Catering, FoodZone, ChefMate.",
-        "decoration": "Decoration services: EventDecor Pro, FlowerArt, Shine Events.",
-        "photography": "Photographers: LensCraft, PixelShot, WeddingFrames.",
+    services = {
+        "catering": [
+            {
+                "name": "A1 Catering",
+                "location": "Chennai",
+                "contact": "+91-98765-11111",
+                "maps_url": "https://www.google.com/maps?q=A1+Catering+Chennai",
+            },
+            {
+                "name": "FoodZone",
+                "location": "Chennai",
+                "contact": "+91-98765-22222",
+                "maps_url": "https://www.google.com/maps?q=FoodZone+Chennai",
+            },
+        ],
+        "decoration": [
+            {
+                "name": "EventDecor Pro",
+                "location": "Chennai",
+                "contact": "+91-98765-33333",
+                "maps_url": "https://www.google.com/maps?q=EventDecor+Pro+Chennai",
+            },
+            {
+                "name": "FlowerArt",
+                "location": "Chennai",
+                "contact": "+91-98765-44444",
+                "maps_url": "https://www.google.com/maps?q=FlowerArt+Chennai",
+            },
+        ],
+        "photography": [
+            {
+                "name": "LensCraft",
+                "location": "Chennai",
+                "contact": "+91-98765-55555",
+                "maps_url": "https://www.google.com/maps?q=LensCraft+Chennai",
+            },
+            {
+                "name": "WeddingFrames",
+                "location": "Chennai",
+                "contact": "+91-98765-66666",
+                "maps_url": "https://www.google.com/maps?q=WeddingFrames+Chennai",
+            },
+        ],
     }
+
     q = query.lower()
-    for key, value in database.items():
+
+    # detect service type
+    matched_type = None
+    for key in services.keys():
         if key in q:
-            return value
-    return "Service not found, try querying catering, decoration, or photography."
+            matched_type = key
+            break
+
+    if not matched_type:
+        return "Service not found, try using words like catering, decoration, or photography."
+
+    # optional location filter, e.g. "catering in chennai"
+    location = None
+    if " in " in q:
+        location = q.split(" in ", 1)[1].strip()
+
+    results = services[matched_type]
+
+    if location:
+        filtered = [
+            s for s in results
+            if location.lower() in s["location"].lower()
+        ]
+        if filtered:
+            results = filtered
+
+    lines = [f"**Available {matched_type} services:**"]
+    for s in results:
+        lines.append(
+            f"- **{s['name']}**  \n"
+            f"  Location: {s['location']}  \n"
+            f"  Contact: {s['contact']}  \n"
+            f"  [View directions on Google Maps]({s['maps_url']})"
+        )
+
+    return "\n".join(lines)
 
 
 # -----------------------------
 # STREAMLIT UI
 # -----------------------------
-st.title("🤖 SmartBot – Multi Tool AI Assistant (LangChain + LLM)")
+st.title("🤖 SmartBot – Multi Tool AI Assistant ")
 
 mode = st.sidebar.selectbox(
     "Choose Mode",
@@ -113,7 +204,7 @@ if mode == "Chat":
 elif mode == "Web Search":
     query = st.text_input("Enter topic to search:")
     if query:
-        st.write(web_search(query))
+        st.write(web_search.invoke(query))
 
 # PDF SUMMARY
 elif mode == "PDF Summary":
@@ -134,9 +225,58 @@ elif mode == "RAG Q&A":
             f.write(file.getbuffer())
         if question:
             st.write(rag_query(question, path))
+            
+# -----------------------------
+# 5. DUMMY BOOKING API
+# -----------------------------
+DUMMY_API_KEY = "DUMMY_BOOKING_123"
 
-# SERVICE LOOKUP
-elif mode == "Service Lookup":
-    query = st.text_input("Enter service needed:")
+def dummy_book_service(service_name: str, user_name: str, api_key: str):
+    if api_key != DUMMY_API_KEY:
+        return {
+            "status": "failed",
+            "message": "Invalid API key"
+        }
+
+    booking_id = f"BOOK-{np.random.randint(1000, 9999)}"
+
+    return {
+        "status": "success",
+        "booking_id": booking_id,
+        "service": service_name,
+        "user": user_name,
+        "message": "Service booked successfully (Dummy Booking)"
+    }
+
+# SERVICE LOOKUP + DUMMY BOOKING
+if mode == "Service Lookup":
+    query = st.text_input("Enter service needed (e.g., catering in chennai):")
+
     if query:
-        st.write(service_lookup(query))
+        st.markdown(service_lookup(query))
+
+        st.divider()
+        st.subheader("📅 Book a Service (Dummy Booking)")
+
+        user_name = st.text_input("Your Name")
+        service_name = st.text_input("Service Name to Book")
+        api_key = st.text_input("API Key", value="DUMMY_BOOKING_123")
+
+        if st.button("✅ Book Service"):
+            if not user_name or not service_name:
+                st.warning("Please enter all details.")
+            else:
+                result = dummy_book_service(
+                    service_name=service_name,
+                    user_name=user_name,
+                    api_key=api_key
+                )
+
+                if result["status"] == "success":
+                    st.success("🎉 Booking Confirmed!")
+                    st.write(f"**Booking ID:** {result['booking_id']}")
+                    st.write(f"**Service:** {result['service']}")
+                    st.write(f"**Booked By:** {result['user']}")
+                else:
+                    st.error(result["message"])
+
