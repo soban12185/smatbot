@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.py[cod]
+*$py.class
+.DS_Store
+uploads/
+faiss_index/
+.gemini/
+brain/
+artifacts/
+*.log
