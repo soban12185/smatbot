@@ -3,260 +3,244 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="SmartBot - AI Assistant">
-    <title>SmartBot</title>
-    <!-- Emoji Favicon (works immediately without an image file) -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🤖</text></svg>">
-    <!-- To use a real image file, comment the line above and uncomment the line below: -->
-    <!-- <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}"> -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <title>SmartBot – AI Assistant</title>
+    <meta name="description" content="SmartBot is an advanced AI-powered chatbot with memory, web search, and PDF intelligence.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Söhne:wght@400;500;600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <div class="gpt-container">
-        <!-- Sidebar -->
-        <aside class="gpt-sidebar">
-            <button class="new-chat-btn" onclick="startNewChat()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="icon-sm">
-                    <path d="M12 4V20M20 12H4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                New chat
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="icon-edit">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
+
+<!-- Mobile Header -->
+<div class="mobile-header" id="mobile-header">
+    <button class="icon-btn" id="menu-toggle">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+    </button>
+    <span class="mobile-title">SmartBot</span>
+    <button class="icon-btn" onclick="startNewChat()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    </button>
+</div>
+
+<!-- Sidebar Overlay (mobile) -->
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+<div class="app-container">
+
+    <!-- ===== SIDEBAR ===== -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-top">
+            <div class="app-logo">
+                <div class="logo-icon">S</div>
+                <span class="app-name">SmartBot</span>
+            </div>
+            <button class="icon-btn" title="New Chat" onclick="startNewChat()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             </button>
+        </div>
 
-            <div class="sidebar-section">
-                <div class="section-title">SmartBot Tools</div>
-                <button class="nav-item active" data-mode="chat">
-                    <div class="nav-icon chat-icon"></div>
-                    <span>SmartBot</span>
-                </button>
-                <button class="nav-item" data-mode="search">
-                    <div class="nav-icon search-icon">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="11" cy="11" r="8"/>
-                            <path d="m21 21-4.35-4.35"/>
-                        </svg>
-                    </div>
-                    <span>Web Search</span>
-                </button>
-                <button class="nav-item" data-mode="pdf">
-                    <div class="nav-icon pdf-icon">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                        </svg>
-                    </div>
-                    <span>PDF Tools</span>
-                </button>
-                <button class="nav-item" data-mode="services">
-                    <div class="nav-icon service-icon">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                        </svg>
-                    </div>
-                    <span>Services</span>
-                </button>
-            </div>
+        <nav class="sidebar-nav">
+            <button class="nav-btn active" data-mode="chat">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <span>SmartBot</span>
+            </button>
+            <button class="nav-btn" data-mode="search">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <span>Web Search</span>
+            </button>
+            <button class="nav-btn" data-mode="pdf">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+                <span>PDF Tools</span>
+            </button>
+            <button class="nav-btn" data-mode="services">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                <span>Services</span>
+            </button>
+        </nav>
 
-            <div class="sidebar-section">
-                <div class="section-title">Your chats</div>
-                <div id="history-list" class="history-list-sidebar">
-                    <!-- History items will be inserted here -->
-                </div>
-            </div>
+        <div class="history-section">
+            <div class="history-label">Recent chats</div>
+            <div id="history-list" class="history-list"></div>
+        </div>
 
-            <div class="user-profile">
-                <div class="avatar">S</div>
+        <div class="sidebar-footer">
+            <div class="user-card">
+                <div class="user-avatar">S</div>
                 <div class="user-info">
                     <div class="user-name">Soban Soban</div>
-                    <div class="user-plan">Free</div>
+                    <div class="user-plan">Free plan</div>
                 </div>
-            </div>
-        </aside>
-
-        <!-- Main Content -->
-        <main class="gpt-main">
-            <!-- Top Bar -->
-            <div class="gpt-top-bar">
-                <button class="model-selector">
-                    SmartBot <span class="version-text">4.5</span>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron">
-                        <path d="M6 9l6 6 6-6"/>
-                    </svg>
-                </button>
-                <div class="top-bar-right">
-                    <button id="login-btn-top" class="login-btn-link">Log in</button>
-                    <button id="signup-btn-top" class="signup-btn-rect">Sign up</button>
-                </div>
-            </div>
-
-            <!-- Chat Area -->
-            <div id="chat-mode" class="mode-view active">
-                <div class="chat-scroll-area" id="chat-messages">
-                    <div class="empty-state">
-                        <div class="gpt-logo-large">
-                             <svg width="32" height="32" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <circle cx="50" cy="50" r="50" fill="white"/>
-                                <path d="M70 35C70 26.7157 63.2843 20 55 20H45C36.7157 20 30 26.7157 30 35V45C30 53.2843 36.7157 60 45 60H55C63.2843 60 70 66.7157 70 75V75" stroke="black" stroke-width="12" stroke-linecap="round"/>
-                                <circle cx="45" cy="35" r="5" fill="black"/>
-                            </svg>
-                        </div>
-                        <h1 class="welcome-title">How can I help you today?</h1>
-                        <div class="suggestion-chips">
-                            <button class="suggestion-chip">Write a poem</button>
-                            <button class="suggestion-chip">Explain AI</button>
-                            <button class="suggestion-chip">Coding tips</button>
-                            <button class="suggestion-chip">Travel ideas</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="input-area">
-                    <form id="gpt-input-form" class="gpt-form">
-                        <div class="input-wrapper">
-                            <button type="button" class="action-btn" title="Add attachments">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="icon-md">
-                                    <path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                            </button>
-                            <input type="text" id="chat-input" placeholder="Ask anything" autocomplete="off" required>
-                            <button type="submit" class="send-btn" disabled>
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="icon-md">
-                                    <path d="M7 11L12 6L17 11M12 18V7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                            </button>
-                        </div>
-                    </form>
-                    <div class="footer-text">
-                        SmartBot can make mistakes. Check important info.
-                    </div>
-                </div>
-            </div>
-
-            <!-- Web Search View -->
-            <div id="search-mode" class="mode-view">
-                <div class="centered-container">
-                    <div class="search-hero">
-                        <div class="search-icon-large">
-                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="11" cy="11" r="8"/>
-                                <path d="m21 21-4.35-4.35"/>
-                            </svg>
-                        </div>
-                        <h2>How can I help you search?</h2>
-                    </div>
-                    <div class="gpt-search-box">
-                        <form id="search-form" class="search-form-wrapper">
-                            <div class="search-input-container">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8e8ea0" stroke-width="2" class="search-input-icon">
-                                    <circle cx="11" cy="11" r="8"/>
-                                    <path d="m21 21-4.35-4.35"/>
-                                </svg>
-                                <input type="text" id="search-input" placeholder="Search the web..." autocomplete="off">
-                                <button type="submit" class="search-submit-btn">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-                                        <path d="M5 12h14M12 5l7 7-7 7"/>
-                                    </svg>
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                    <div id="search-results" class="results-area"></div>
-                </div>
-            </div>
-
-            <!-- PDF Mode View -->
-            <div id="pdf-mode" class="mode-view">
-                <div class="centered-container">
-                    <h2>PDF Tools</h2>
-                    <form id="pdf-summary-form">
-                        <div class="drop-zone" id="pdf-summary-drop">
-                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                                <path d="M14 2v6h6"/>
-                                <path d="M12 18v-6"/>
-                                <path d="M9 15l3 3 3-3"/>
-                            </svg>
-                            <p>Upload PDF</p>
-                            <input type="file" id="pdf-summary-file" accept=".pdf" hidden>
-                        </div>
-                        <button type="submit" class="primary-btn">Analyze PDF</button>
-                    </form>
-                    <div id="pdf-summary-results" class="results-area"></div>
-                </div>
-            </div>
-
-             <!-- Services Mode View -->
-             <div id="services-mode" class="mode-view">
-                <div class="centered-container">
-                    <h2>Services</h2>
-                     <div class="gpt-search-box">
-                        <form id="services-search-form">
-                            <input type="text" id="services-input" placeholder="Search services...">
-                            <button type="submit" class="primary-btn">Find</button>
-                        </form>
-                    </div>
-                    <div id="services-results" class="results-area"></div>
-                </div>
-            </div>
-
-        </main>
-    </div>
-
-    <div id="login-modal" class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Welcome back</h2>
-                <button class="close-modal">&times;</button>
-            </div>
-            <form id="login-form">
-                <div class="form-group">
-                    <label for="login-email">Email address</label>
-                    <input type="email" id="login-email" required placeholder="name@example.com">
-                </div>
-                <div class="form-group">
-                    <label for="login-password">Password</label>
-                    <input type="password" id="login-password" required placeholder="••••••••">
-                </div>
-                <button type="submit" class="auth-submit-btn">Continue</button>
-            </form>
-            <div class="modal-footer">
-                <p>Don't have an account? <a href="#" id="switch-to-signup">Sign up</a></p>
             </div>
         </div>
-    </div>
+    </aside>
 
-    <div id="signup-modal" class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Create your account</h2>
-                <button class="close-modal-signup">&times;</button>
-            </div>
-            <form id="signup-form">
-                <div class="form-group">
-                    <label for="signup-name">Full name</label>
-                    <input type="text" id="signup-name" required placeholder="John Doe">
-                </div>
-                <div class="form-group">
-                    <label for="signup-email">Email address</label>
-                    <input type="email" id="signup-email" required placeholder="name@example.com">
-                </div>
-                <div class="form-group">
-                    <label for="signup-password">Password</label>
-                    <input type="password" id="signup-password" required placeholder="••••••••">
-                </div>
-                <button type="submit" class="auth-submit-btn">Create account</button>
-            </form>
-            <div class="modal-footer">
-                <p>Already have an account? <a href="#" id="switch-to-login">Log in</a></p>
-            </div>
-        </div>
-    </div>
+    <!-- ===== MAIN CONTENT ===== -->
+    <main class="main-content">
 
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+        <!-- Top Bar -->
+        <header class="top-bar">
+            <div class="model-badge">
+                SmartBot
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+            </div>
+            <div class="top-bar-actions">
+                <button id="btn-login" class="btn-ghost">Log in</button>
+                <button id="btn-signup" class="btn-solid">Sign up</button>
+            </div>
+        </header>
+
+        <!-- ── CHAT VIEW ── -->
+        <section id="view-chat" class="view active">
+            <div class="chat-area" id="chat-area">
+                <!-- Welcome State -->
+                <div class="welcome-state" id="welcome-state">
+                    <div class="welcome-logo">
+                        <svg width="36" height="36" viewBox="0 0 100 100" fill="none">
+                            <circle cx="50" cy="50" r="50" fill="white"/>
+                            <path d="M70 35C70 26.7 63.3 20 55 20H45C36.7 20 30 26.7 30 35V45C30 53.3 36.7 60 45 60H55C63.3 60 70 66.7 70 75" stroke="black" stroke-width="12" stroke-linecap="round"/>
+                            <circle cx="45" cy="35" r="5" fill="black"/>
+                        </svg>
+                    </div>
+                    <h1 class="welcome-heading">How can I help you today?</h1>
+                    <div class="prompt-chips">
+                        <button class="chip" data-prompt="Write me a short poem about AI">✍️ Write a poem</button>
+                        <button class="chip" data-prompt="Explain artificial intelligence in simple terms">🤖 Explain AI</button>
+                        <button class="chip" data-prompt="Give me 5 coding best practices">💻 Coding tips</button>
+                        <button class="chip" data-prompt="Suggest travel destinations in Europe">✈️ Travel ideas</button>
+                    </div>
+                </div>
+
+                <!-- Messages will be injected here -->
+                <div id="messages-container" class="messages-container"></div>
+            </div>
+
+            <!-- Input Bar -->
+            <div class="input-bar-wrapper">
+                <form id="chat-form" class="input-bar">
+                    <button type="button" class="input-action-btn" id="attach-btn" title="Attach file">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
+                    </button>
+                    <textarea id="chat-input" class="chat-textarea" placeholder="Ask anything…" rows="1" autocomplete="off"></textarea>
+                    <div class="input-right-actions">
+                        <button type="button" class="input-action-btn" title="Voice input">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
+                        </button>
+                        <button type="submit" class="send-btn" id="send-btn" disabled>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
+                        </button>
+                    </div>
+                </form>
+                <p class="input-disclaimer">SmartBot can make mistakes. Consider checking important information.</p>
+            </div>
+        </section>
+
+        <!-- ── SEARCH VIEW ── -->
+        <section id="view-search" class="view">
+            <div class="centered-view">
+                <div class="view-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                </div>
+                <h2 class="view-title">Search the Web</h2>
+                <form id="search-form" class="search-form">
+                    <div class="search-input-wrap">
+                        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                        <input type="text" id="search-input" placeholder="Search the web…" autocomplete="off">
+                        <button type="submit" class="search-submit-btn">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
+                        </button>
+                    </div>
+                </form>
+                <div id="search-results" class="results-grid"></div>
+            </div>
+        </section>
+
+        <!-- ── PDF VIEW ── -->
+        <section id="view-pdf" class="view">
+            <div class="centered-view">
+                <div class="view-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+                </div>
+                <h2 class="view-title">PDF Intelligence</h2>
+                <form id="pdf-form" class="pdf-upload-form">
+                    <div class="drop-zone" id="drop-zone">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        <p class="drop-title">Drop your PDF here or <span class="drop-link">click to upload</span></p>
+                        <p class="drop-sub">Supports PDF files up to 10MB</p>
+                        <input type="file" id="pdf-file-input" accept=".pdf" hidden>
+                    </div>
+                    <button type="submit" class="btn-primary" id="pdf-submit-btn" disabled>Analyze Document</button>
+                </form>
+                <div id="pdf-results" class="results-grid"></div>
+            </div>
+        </section>
+
+        <!-- ── SERVICES VIEW ── -->
+        <section id="view-services" class="view">
+            <div class="centered-view">
+                <div class="view-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                </div>
+                <h2 class="view-title">Find Professional Services</h2>
+                <form id="services-form" class="search-form">
+                    <div class="search-input-wrap">
+                        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                        <input type="text" id="services-input" placeholder="Search catering, plumbing, IT…" autocomplete="off">
+                        <button type="submit" class="search-submit-btn">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
+                        </button>
+                    </div>
+                </form>
+                <div id="services-results" class="results-grid"></div>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<!-- ── LOGIN MODAL ── -->
+<div class="modal-overlay" id="modal-login">
+    <div class="modal-box">
+        <button class="modal-close" data-close="modal-login">✕</button>
+        <h2 class="modal-title">Welcome back</h2>
+        <form id="login-form" class="auth-form">
+            <div class="form-group">
+                <label for="login-email">Email</label>
+                <input type="email" id="login-email" placeholder="you@example.com" required>
+            </div>
+            <div class="form-group">
+                <label for="login-password">Password</label>
+                <input type="password" id="login-password" placeholder="••••••••" required>
+            </div>
+            <button type="submit" class="btn-primary">Continue</button>
+        </form>
+        <p class="modal-switch">No account? <a href="#" id="go-signup">Sign up</a></p>
+    </div>
+</div>
+
+<!-- ── SIGNUP MODAL ── -->
+<div class="modal-overlay" id="modal-signup">
+    <div class="modal-box">
+        <button class="modal-close" data-close="modal-signup">✕</button>
+        <h2 class="modal-title">Create account</h2>
+        <form id="signup-form" class="auth-form">
+            <div class="form-group">
+                <label for="signup-name">Full Name</label>
+                <input type="text" id="signup-name" placeholder="John Doe" required>
+            </div>
+            <div class="form-group">
+                <label for="signup-email">Email</label>
+                <input type="email" id="signup-email" placeholder="you@example.com" required>
+            </div>
+            <div class="form-group">
+                <label for="signup-password">Password</label>
+                <input type="password" id="signup-password" placeholder="••••••••" required>
+            </div>
+            <button type="submit" class="btn-primary">Create account</button>
+        </form>
+        <p class="modal-switch">Already have an account? <a href="#" id="go-login">Log in</a></p>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>

@@ -1,399 +1,515 @@
+/* ===================================================
+   SmartBot – main.js
+   =================================================== */
+
 document.addEventListener('DOMContentLoaded', () => {
-    // DOM Elements
-    const chatInput = document.getElementById('chat-input');
-    const sendBtn = document.querySelector('.send-btn');
-    const chatForm = document.getElementById('gpt-input-form');
-    const chatMessages = document.getElementById('chat-messages');
-    const historyList = document.getElementById('history-list');
-    const modelSelector = document.querySelector('.model-selector');
-    
+
+    // ── DOM refs ──────────────────────────────────────
+    const chatForm        = document.getElementById('chat-form');
+    const chatInput       = document.getElementById('chat-input');
+    const sendBtn         = document.getElementById('send-btn');
+    const chatArea        = document.getElementById('chat-area');
+    const messagesContainer = document.getElementById('messages-container');
+    const welcomeState    = document.getElementById('welcome-state');
+    const historyList     = document.getElementById('history-list');
+
+    // Search
+    const searchForm    = document.getElementById('search-form');
+    const searchInput   = document.getElementById('search-input');
+    const searchResults = document.getElementById('search-results');
+
+    // PDF
+    const pdfForm       = document.getElementById('pdf-form');
+    const pdfDropZone   = document.getElementById('drop-zone');
+    const pdfFileInput  = document.getElementById('pdf-file-input');
+    const pdfSubmitBtn  = document.getElementById('pdf-submit-btn');
+    const pdfResults    = document.getElementById('pdf-results');
+
+    // Services
+    const servicesForm    = document.getElementById('services-form');
+    const servicesInput   = document.getElementById('services-input');
+    const servicesResults = document.getElementById('services-results');
+
+    // Auth
+    const btnLogin  = document.getElementById('btn-login');
+    const btnSignup = document.getElementById('btn-signup');
+    const modalLogin  = document.getElementById('modal-login');
+    const modalSignup = document.getElementById('modal-signup');
+    const loginForm   = document.getElementById('login-form');
+    const signupForm  = document.getElementById('signup-form');
+    const goSignup    = document.getElementById('go-signup');
+    const goLogin     = document.getElementById('go-login');
+
+    // Mobile sidebar
+    const sidebar        = document.getElementById('sidebar');
+    const menuToggle     = document.getElementById('menu-toggle');
+    const sidebarOverlay = document.getElementById('sidebar-overlay');
+
+    // ── DATA ──────────────────────────────────────────
+    const MOCK_SERVICES = [
+        { title: 'Premium Catering', desc: 'Expert food service for any event size.', price: '$50/plate', category: 'catering' },
+        { title: 'Royal Decoration', desc: 'Elegant decoration for weddings & parties.', price: '$200/event', category: 'decoration' },
+        { title: 'StarBand Live Music', desc: 'Professional live music entertainment.', price: '$500/show', category: 'entertainment' },
+        { title: 'FastFix Plumbing', desc: '24/7 emergency plumbing and pipe repair.', price: '$80/hr', category: 'plumbing' },
+        { title: 'CloudIT Consulting', desc: 'Cloud migration & cybersecurity experts.', price: 'Custom quote', category: 'it' },
+        { title: 'ProPhoto Studio', desc: 'Professional photography for all occasions.', price: '$300/session', category: 'photography' },
+    ];
+
     // State
-    let currentMode = 'chat';
     let isProcessing = false;
+    let sessionId = localStorage.getItem('sb_session') || generateId();
+    localStorage.setItem('sb_session', sessionId);
 
-    // Initialize
-    loadChatHistory();
-    setupEventListeners();
+    // ─────────────────────────────────────────────────
+    //  INIT
+    // ─────────────────────────────────────────────────
+    loadHistory();
+    setupNavigation();
+    setupChat();
+    setupSearch();
+    setupPDF();
+    setupServices();
+    setupAuth();
+    setupMobile();
 
-    // Event Listeners
-    function setupEventListeners() {
-        // Input handling
+    // ─────────────────────────────────────────────────
+    //  NAVIGATION  (sidebar tabs)
+    // ─────────────────────────────────────────────────
+    function setupNavigation() {
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const mode = btn.dataset.mode;
+                switchView(mode);
+                // Close sidebar on mobile after tap
+                if (window.innerWidth <= 768) closeSidebar();
+            });
+        });
+    }
+
+    function switchView(mode) {
+        // Update nav
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+        // Update view
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        const target = document.getElementById(`view-${mode}`);
+        if (target) target.classList.add('active');
+    }
+
+    // ─────────────────────────────────────────────────
+    //  CHAT
+    // ─────────────────────────────────────────────────
+    function setupChat() {
+        // Auto-grow textarea
         chatInput.addEventListener('input', () => {
-            sendBtn.disabled = chatInput.value.trim().length === 0;
-            if (chatInput.value.trim().length > 0) {
-                sendBtn.style.backgroundColor = 'white';
-                sendBtn.style.color = 'black';
-            } else {
-                sendBtn.style.backgroundColor = 'transparent';
-                sendBtn.style.color = '#b4b4b4';
+            chatInput.style.height = 'auto';
+            chatInput.style.height = Math.min(chatInput.scrollHeight, 180) + 'px';
+            sendBtn.disabled = chatInput.value.trim() === '';
+        });
+
+        // Enter to send (Shift+Enter = new line)
+        chatInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (!sendBtn.disabled) chatForm.requestSubmit();
             }
         });
 
-        // Form submission
+        // Form submit
         chatForm.addEventListener('submit', handleChatSubmit);
 
-        // Sidebar Navigation
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.addEventListener('click', (e) => {
-                const mode = item.dataset.mode;
-                switchMode(mode);
+        // Suggestion chips
+        document.querySelectorAll('.chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                const prompt = chip.dataset.prompt || chip.textContent.trim();
+                chatInput.value = prompt;
+                chatInput.dispatchEvent(new Event('input'));
+                chatForm.requestSubmit();
             });
         });
-
-        // Other forms
-        const searchForm = document.getElementById('search-form');
-        if(searchForm) searchForm.addEventListener('submit', handleSearchSubmit);
-        
-        const pdfForm = document.getElementById('pdf-summary-form');
-        if(pdfForm) pdfForm.addEventListener('submit', handlePdfSubmit);
-        
-        const servicesForm = document.getElementById('services-search-form');
-        if(servicesForm) servicesForm.addEventListener('submit', handleServicesSubmit);
-
-        // PDF file picker
-        const pdfDrop = document.getElementById('pdf-summary-drop');
-        const pdfInput = document.getElementById('pdf-summary-file');
-        if (pdfDrop && pdfInput) {
-            pdfDrop.addEventListener('click', () => pdfInput.click());
-            pdfInput.addEventListener('change', () => {
-                if (pdfInput.files.length > 0) {
-                    pdfDrop.querySelector('p').textContent = pdfInput.files[0].name;
-                } else {
-                    pdfDrop.querySelector('p').textContent = 'Upload PDF';
-                }
-            });
-        }
     }
 
-    // Switch Mode
-    function switchMode(mode) {
-        // Update active nav item
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.classList.remove('active');
-            if(item.dataset.mode === mode) item.classList.add('active');
-        });
-
-        // Update active view
-        document.querySelectorAll('.mode-view').forEach(view => {
-            view.classList.remove('active');
-        });
-        document.getElementById(`${mode}-mode`).classList.add('active');
-
-        currentMode = mode;
-        
-        // Focus input if in chat mode
-        if (mode === 'chat') {
-            chatInput.focus();
-        }
-    }
-
-    // Handle Chat Submit
     async function handleChatSubmit(e) {
         e.preventDefault();
         const message = chatInput.value.trim();
         if (!message || isProcessing) return;
 
+        // Hide welcome state
+        if (welcomeState) welcomeState.style.display = 'none';
+
         // Reset input
         chatInput.value = '';
+        chatInput.style.height = 'auto';
         sendBtn.disabled = true;
-        sendBtn.style.backgroundColor = 'transparent';
-        sendBtn.style.color = '#b4b4b4';
-        
-        // Hide empty state if first message
-        const emptyState = document.querySelector('.empty-state');
-        if (emptyState) emptyState.style.display = 'none';
 
-        // Add user message
-        addChatMessage(message, 'user');
-        
+        // Render user bubble
+        appendUserMessage(message);
+
+        // Show typing
+        const typingEl = appendTypingIndicator();
         isProcessing = true;
 
-        // Get or create session ID for memory
-        let sessionId = localStorage.getItem('smartbot_session_id');
-        if (!sessionId) {
-            sessionId = 'session_' + Math.random().toString(36).substring(2, 11);
-            localStorage.setItem('smartbot_session_id', sessionId);
-        }
-
         try {
-            // Call API
-            const response = await fetch('/api/chat', {
+            const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    query: message,
-                    session_id: sessionId
-                })
+                body: JSON.stringify({ query: message, session_id: sessionId })
             });
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || `API Error: ${response.status}`);
-            }
-            const data = await response.json();
-            
-            // Add bot response
-            addChatMessage(data.response, 'bot');
-            
-            // Save to history
-            saveToHistory(message);
+            const data = await res.json();
+            typingEl.remove();
 
-        } catch (error) {
-            console.error(error);
-            // DEBUG: Show actual error to user
-            addChatMessage(`Error Details: ${error.message || error}`, 'bot');
+            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+            appendBotMessage(data.response);
+            saveHistory(message);
+
+        } catch (err) {
+            typingEl.remove();
+            appendBotMessage(`⚠️ ${err.message || 'Something went wrong. Please try again.'}`);
         } finally {
             isProcessing = false;
         }
     }
 
-    // Add Chat Message to UI
-    function addChatMessage(text, sender) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message message-${sender}`;
-        
-        // Avatar
-        const avatarDiv = document.createElement('div');
-        avatarDiv.className = 'message-avatar';
-        
-        if (sender === 'user') {
-            avatarDiv.style.backgroundColor = '#7b1fa2'; // Purple context
-            avatarDiv.textContent = 'S'; // Initials
-            avatarDiv.style.display = 'flex';
-            avatarDiv.style.alignItems = 'center';
-            avatarDiv.style.justifyContent = 'center';
-            avatarDiv.style.color = 'white';
-            avatarDiv.style.fontSize = '12px';
-            avatarDiv.style.fontWeight = 'bold';
-        } else {
-            avatarDiv.innerHTML = `
-                <div style="background: #10a37f; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; border-radius: 2px;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-                        <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/>
-                    </svg>
-                </div>
-            `;
-        }
-        
-        // Content
-        const contentDiv = document.createElement('div');
-        contentDiv.className = 'message-content';
-        contentDiv.textContent = text; // Ideally use markdown parser here
-        
-        messageDiv.appendChild(avatarDiv);
-        messageDiv.appendChild(contentDiv);
-        
-        chatMessages.appendChild(messageDiv);
-        
-        // Scroll to bottom
-        chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: 'smooth' });
+    // ── Message renderers ──────────────────────────
+    function appendUserMessage(text) {
+        const row = document.createElement('div');
+        row.className = 'msg-row user';
+        row.innerHTML = `<div class="msg-bubble">${escapeHtml(text)}</div>`;
+        messagesContainer.appendChild(row);
+        scrollToBottom();
     }
 
-    // History Logic
-    function loadChatHistory() {
-        const history = JSON.parse(localStorage.getItem('smartbot_chat_history') || '[]');
-        renderSidebarHistory(history);
-    }
-
-    function saveToHistory(firstMessage) {
-        // Simple history implementation: just save the first user query as title
-        const history = JSON.parse(localStorage.getItem('smartbot_chat_history') || '[]');
-        const newItem = {
-            id: Date.now(),
-            title: firstMessage.substring(0, 30) + (firstMessage.length > 30 ? '...' : ''),
-            date: new Date()
-        };
-        history.unshift(newItem);
-        localStorage.setItem('smartbot_chat_history', JSON.stringify(history.slice(0, 50))); // Keep last 50
-        renderSidebarHistory(history);
-    }
-
-    function renderSidebarHistory(history) {
-        if (!historyList) return;
-        historyList.innerHTML = '';
-        history.forEach(item => {
-            const div = document.createElement('div');
-            div.className = 'history-item';
-            div.textContent = item.title;
-            div.onclick = () => loadHistoryItem(item);
-            historyList.appendChild(div);
-        });
-    }
-
-    function loadHistoryItem(item) {
-        chatMessages.innerHTML = '';
-        addChatMessage(item.title, 'user');
-        addChatMessage("I recall this conversation. How can I help further?", 'bot');
-    }
-
-    // New Chat
-    window.startNewChat = function() {
-        chatMessages.innerHTML = `
-            <div class="empty-state">
-                <div class="gpt-logo-large">
-                     <svg width="41" height="41" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="50" cy="50" r="50" fill="white"/>
-                        <path d="M70 35C70 26.7157 63.2843 20 55 20H45C36.7157 20 30 26.7157 30 35V45C30 53.2843 36.7157 60 45 60H55C63.2843 60 70 66.7157 70 75V75" stroke="black" stroke-width="12" stroke-linecap="round"/>
-                        <circle cx="45" cy="35" r="5" fill="black"/>
-                    </svg>
+    function appendBotMessage(text) {
+        const row = document.createElement('div');
+        row.className = 'msg-row bot';
+        row.innerHTML = `
+            <div class="bot-logo">
+                <svg width="18" height="18" viewBox="0 0 100 100" fill="none">
+                    <circle cx="50" cy="50" r="50" fill="white"/>
+                    <path d="M70 35C70 26.7 63.3 20 55 20H45C36.7 20 30 26.7 30 35V45C30 53.3 36.7 60 45 60H55C63.3 60 70 66.7 70 75" stroke="black" stroke-width="12" stroke-linecap="round"/>
+                    <circle cx="45" cy="35" r="5" fill="black"/>
+                </svg>
+            </div>
+            <div class="msg-body">
+                <div class="msg-text">${formatMarkdown(text)}</div>
+                <div class="msg-actions">
+                    <button class="msg-action-btn" title="Copy" onclick="copyText(this, ${JSON.stringify(text)})">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    </button>
+                    <button class="msg-action-btn" title="Good response">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.3a2 2 0 0 0 2-1.7l1.4-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+                    </button>
+                    <button class="msg-action-btn" title="Bad response">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.7a2 2 0 0 0-2 1.7l-1.4 9a2 2 0 0 0 2 2.3H10z"/><path d="M17 2h2.3A2 2 0 0 1 21.4 4v7a2 2 0 0 1-2 2H17"/></svg>
+                    </button>
                 </div>
             </div>
         `;
-    };
+        messagesContainer.appendChild(row);
+        scrollToBottom();
+    }
 
-    // Mode specific handlers
-    async function handleSearchSubmit(e) {
-        e.preventDefault();
-        const input = document.getElementById('search-input');
-        const query = input.value;
-        const resultsArea = document.getElementById('search-results');
-        
-        resultsArea.innerHTML = '<div class="loader">Searching the web...</div>';
-        
-        try {
-            const res = await fetch('/api/search', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({query})
-            });
-            const data = await res.json();
-            
-            if (data.results && data.results.length > 0) {
-                resultsArea.innerHTML = `
-                    <div class="search-results-container">
-                        ${data.results.map(item => `
-                            <div class="search-card">
-                                <a href="${item.link}" target="_blank" class="search-card-title">${item.title}</a>
-                                <p class="search-card-snippet">${item.snippet}</p>
-                            </div>
-                        `).join('')}
+    function appendTypingIndicator() {
+        const row = document.createElement('div');
+        row.className = 'typing-row';
+        row.innerHTML = `
+            <div class="bot-logo">
+                <svg width="18" height="18" viewBox="0 0 100 100" fill="none">
+                    <circle cx="50" cy="50" r="50" fill="white"/>
+                    <path d="M70 35C70 26.7 63.3 20 55 20H45C36.7 20 30 26.7 30 35V45C30 53.3 36.7 60 45 60H55C63.3 60 70 66.7 70 75" stroke="black" stroke-width="12" stroke-linecap="round"/>
+                    <circle cx="45" cy="35" r="5" fill="black"/>
+                </svg>
+            </div>
+            <div class="typing-indicator">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
+        `;
+        messagesContainer.appendChild(row);
+        scrollToBottom();
+        return row;
+    }
+
+    function scrollToBottom() {
+        chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' });
+    }
+
+    // ─────────────────────────────────────────────────
+    //  WEB SEARCH
+    // ─────────────────────────────────────────────────
+    function setupSearch() {
+        if (!searchForm) return;
+        searchForm.addEventListener('submit', async e => {
+            e.preventDefault();
+            const q = searchInput.value.trim();
+            if (!q) return;
+
+            searchResults.innerHTML = `<div class="loader-text">Searching the web…</div>`;
+
+            try {
+                const res  = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: q })
+                });
+                const data = await res.json();
+
+                if (data.results && data.results.length) {
+                    searchResults.innerHTML = data.results.map(r => `
+                        <div class="result-card">
+                            <a href="${r.link || '#'}" target="_blank" class="result-card-title">${r.title || 'Untitled'}</a>
+                            <div class="result-card-url">${r.link || ''}</div>
+                            <p class="result-card-snippet">${r.snippet || ''}</p>
+                        </div>
+                    `).join('');
+                } else {
+                    searchResults.innerHTML = `<div class="loader-text">No results found for "${escapeHtml(q)}".</div>`;
+                }
+            } catch {
+                searchResults.innerHTML = `<div class="loader-text">Search failed. Please try again.</div>`;
+            }
+        });
+    }
+
+    // ─────────────────────────────────────────────────
+    //  PDF UPLOAD
+    // ─────────────────────────────────────────────────
+    function setupPDF() {
+        if (!pdfDropZone) return;
+
+        // Click to open file picker
+        pdfDropZone.addEventListener('click', () => pdfFileInput.click());
+
+        // File selected
+        pdfFileInput.addEventListener('change', () => {
+            if (pdfFileInput.files[0]) {
+                pdfDropZone.querySelector('.drop-title').textContent = pdfFileInput.files[0].name;
+                pdfSubmitBtn.disabled = false;
+            }
+        });
+
+        // Drag & drop
+        pdfDropZone.addEventListener('dragover', e => { e.preventDefault(); pdfDropZone.classList.add('dragover'); });
+        pdfDropZone.addEventListener('dragleave', () => pdfDropZone.classList.remove('dragover'));
+        pdfDropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            pdfDropZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type === 'application/pdf') {
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                pdfFileInput.files = dt.files;
+                pdfDropZone.querySelector('.drop-title').textContent = file.name;
+                pdfSubmitBtn.disabled = false;
+            }
+        });
+
+        // Submit
+        pdfForm.addEventListener('submit', async e => {
+            e.preventDefault();
+            if (!pdfFileInput.files[0]) return;
+
+            pdfResults.innerHTML = `<div class="loader-text">Analyzing document…</div>`;
+
+            const formData = new FormData();
+            formData.append('pdf', pdfFileInput.files[0]);
+
+            try {
+                const res  = await fetch('/api/pdf/summarize', { method: 'POST', body: formData });
+                const data = await res.json();
+                pdfResults.innerHTML = `
+                    <div class="result-card">
+                        <span class="result-card-title">📄 Document Summary</span>
+                        <p class="result-card-snippet" style="white-space:pre-wrap;">${data.summary || data.response || 'No summary returned.'}</p>
                     </div>
                 `;
-            } else {
-                resultsArea.innerHTML = '<div style="padding: 20px;">No results found.</div>';
+            } catch {
+                pdfResults.innerHTML = `<div class="loader-text">Failed to analyze PDF. Please try again.</div>`;
             }
-        } catch(e) {
-            resultsArea.innerHTML = '<div style="color: #ff4a4a; padding: 20px;">Search failed. Please try again.</div>';
-        }
+        });
     }
 
-    async function handlePdfSubmit(e) {
-        e.preventDefault();
-        const fileInput = document.getElementById('pdf-summary-file');
-        const resultsArea = document.getElementById('pdf-summary-results');
+    // ─────────────────────────────────────────────────
+    //  SERVICES
+    // ─────────────────────────────────────────────────
+    function setupServices() {
+        if (!servicesForm) return;
         
-        if (!fileInput.files || fileInput.files.length === 0) {
-            resultsArea.innerHTML = '<div style="color: #ff4a4a;">Please select a PDF file first.</div>';
+        servicesForm.addEventListener('submit', e => {
+            e.preventDefault();
+            const q = servicesInput.value.trim().toLowerCase();
+            if (q === '') {
+                servicesResults.innerHTML = '';
+                return;
+            }
+            const filtered = MOCK_SERVICES.filter(s =>
+                s.title.toLowerCase().includes(q) ||
+                s.desc.toLowerCase().includes(q) ||
+                s.category.includes(q)
+            );
+            renderServiceCards(filtered, q);
+        });
+        
+        // Also search as you type for better UX
+        servicesInput.addEventListener('input', () => {
+            const q = servicesInput.value.trim().toLowerCase();
+            if (q === '') {
+                servicesResults.innerHTML = '';
+                return;
+            }
+            const filtered = MOCK_SERVICES.filter(s =>
+                s.title.toLowerCase().includes(q) ||
+                s.category.includes(q)
+            );
+            renderServiceCards(filtered, q);
+        });
+    }
+
+    function renderServiceCards(services, query = '') {
+        if (!services.length) {
+            servicesResults.innerHTML = `<div class="loader-text">No services found matching "${escapeHtml(query)}".</div>`;
             return;
         }
+        servicesResults.innerHTML = services.map(s => `
+            <div class="result-card">
+                <span class="result-card-title">${s.title}</span>
+                <p class="result-card-snippet">${s.desc} — <strong>${s.price}</strong></p>
+                <div class="result-card-actions">
+                    <button class="btn-card">Book Now</button>
+                </div>
+            </div>
+        `).join('');
+    }
 
-        resultsArea.innerHTML = '<div class="loader">Analyzing PDF...</div>';
-        const formData = new FormData();
-        formData.append('file', fileInput.files[0]);
+    // ─────────────────────────────────────────────────
+    //  AUTH MODALS
+    // ─────────────────────────────────────────────────
+    function setupAuth() {
+        btnLogin?.addEventListener('click',  () => openModal('modal-login'));
+        btnSignup?.addEventListener('click', () => openModal('modal-signup'));
 
-        try {
-            const res = await fetch('/api/pdf/summary', {
-                method: 'POST',
-                body: formData
+        // Close buttons
+        document.querySelectorAll('.modal-close').forEach(btn => {
+            btn.addEventListener('click', () => closeModal(btn.dataset.close));
+        });
+
+        // Close on overlay click
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', e => {
+                if (e.target === overlay) closeModal(overlay.id);
             });
-            const data = await res.json();
-            
-            if (!res.ok) {
-                throw new Error(data.error || 'Failed to analyze PDF');
-            }
-            
-            resultsArea.innerHTML = `<div class="pdf-analysis-result" style="white-space: pre-wrap; line-height: 1.5; padding: 15px; background: #2a2a35; border-radius: 8px;">${data.response}</div>`;
-        } catch (error) {
-            resultsArea.innerHTML = `<div style="color: #ff4a4a;">Error: ${error.message}</div>`;
-        }
-    }
-
-    async function handleServicesSubmit(e) {
-        e.preventDefault();
-    }
-
-    // Login Modal Logic
-    const loginModal = document.getElementById('login-modal');
-    const signupModal = document.getElementById('signup-modal');
-    const loginBtnTop = document.getElementById('login-btn-top');
-    const signupBtnTop = document.getElementById('signup-btn-top');
-    const closeModal = document.querySelector('.close-modal');
-    const closeModalSignup = document.querySelector('.close-modal-signup');
-    const loginForm = document.getElementById('login-form');
-    const signupForm = document.getElementById('signup-form');
-    const switchToSignup = document.getElementById('switch-to-signup');
-    const switchToLogin = document.getElementById('switch-to-login');
-
-    if (loginBtnTop && loginModal) {
-        loginBtnTop.addEventListener('click', () => {
-            loginModal.classList.add('active');
         });
-    }
 
-    if (signupBtnTop && signupModal) {
-        signupBtnTop.addEventListener('click', () => {
-            signupModal.classList.add('active');
-        });
-    }
+        // Switch links
+        goSignup?.addEventListener('click', e => { e.preventDefault(); closeModal('modal-login'); openModal('modal-signup'); });
+        goLogin?.addEventListener('click',  e => { e.preventDefault(); closeModal('modal-signup'); openModal('modal-login'); });
 
-    if (closeModal && loginModal) {
-        closeModal.addEventListener('click', () => {
-            loginModal.classList.remove('active');
-        });
-    }
-
-    if (closeModalSignup && signupModal) {
-        closeModalSignup.addEventListener('click', () => {
-            signupModal.classList.remove('active');
-        });
-    }
-
-    if (switchToSignup) {
-        switchToSignup.addEventListener('click', (e) => {
+        // Form submissions (stub)
+        loginForm?.addEventListener('submit', e => {
             e.preventDefault();
-            loginModal.classList.remove('active');
-            signupModal.classList.add('active');
+            alert(`Welcome back, ${document.getElementById('login-email').value}!`);
+            closeModal('modal-login');
         });
-    }
-
-    if (switchToLogin) {
-        switchToLogin.addEventListener('click', (e) => {
+        signupForm?.addEventListener('submit', e => {
             e.preventDefault();
-            signupModal.classList.remove('active');
-            loginModal.classList.add('active');
+            alert(`Account created for ${document.getElementById('signup-name').value}! Please log in.`);
+            closeModal('modal-signup');
+            openModal('modal-login');
         });
     }
 
-    // Close on outside click
-    window.addEventListener('click', (e) => {
-        if (e.target === loginModal) loginModal.classList.remove('active');
-        if (e.target === signupModal) signupModal.classList.remove('active');
-    });
+    function openModal(id)  { document.getElementById(id)?.classList.add('open'); }
+    function closeModal(id) { document.getElementById(id)?.classList.remove('open'); }
 
-    if (loginForm) {
-        loginForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const email = document.getElementById('login-email').value;
-            alert('Welcome back, ' + email);
-            loginModal.classList.remove('active');
+    // ─────────────────────────────────────────────────
+    //  MOBILE SIDEBAR
+    // ─────────────────────────────────────────────────
+    function setupMobile() {
+        menuToggle?.addEventListener('click', () => {
+            sidebar.classList.add('open');
+            sidebarOverlay.classList.add('open');
         });
+        sidebarOverlay?.addEventListener('click', closeSidebar);
     }
 
-    if (signupForm) {
-        signupForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const name = document.getElementById('signup-name').value;
-            alert('Account created for ' + name + '! You can now log in.');
-            signupModal.classList.remove('active');
-            loginModal.classList.add('active');
-        });
+    function closeSidebar() {
+        sidebar?.classList.remove('open');
+        sidebarOverlay?.classList.remove('open');
     }
 
-    // Suggestion Chips
-    document.querySelectorAll('.suggestion-chip').forEach(chip => {
-        chip.addEventListener('click', () => {
-            chatInput.value = chip.textContent;
-            chatForm.dispatchEvent(new Event('submit'));
-        });
-    });
+    // ─────────────────────────────────────────────────
+    //  CHAT HISTORY  (localStorage)
+    // ─────────────────────────────────────────────────
+    function loadHistory() {
+        const history = getHistory();
+        renderHistory(history);
+    }
+
+    function saveHistory(message) {
+        const history = getHistory();
+        const title = message.length > 32 ? message.slice(0, 32) + '…' : message;
+        history.unshift({ id: Date.now(), title, ts: new Date().toISOString() });
+        localStorage.setItem('sb_history', JSON.stringify(history.slice(0, 50)));
+        renderHistory(history);
+    }
+
+    function getHistory() {
+        return JSON.parse(localStorage.getItem('sb_history') || '[]');
+    }
+
+    function renderHistory(history) {
+        if (!historyList) return;
+        historyList.innerHTML = history.map(item => `
+            <div class="history-item" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</div>
+        `).join('') || '<div style="padding:8px 12px;font-size:13px;color:var(--text-dim)">No chats yet</div>';
+    }
+
+    // ─────────────────────────────────────────────────
+    //  NEW CHAT
+    // ─────────────────────────────────────────────────
+    window.startNewChat = function () {
+        messagesContainer.innerHTML = '';
+        if (welcomeState) welcomeState.style.display = '';
+        chatInput.value = '';
+        chatInput.style.height = 'auto';
+        sendBtn.disabled = true;
+        sessionId = generateId();
+        localStorage.setItem('sb_session', sessionId);
+        switchView('chat');
+        chatInput.focus();
+        if (window.innerWidth <= 768) closeSidebar();
+    };
+
+    // ─────────────────────────────────────────────────
+    //  COPY TEXT HELPER (global so onclick can call it)
+    // ─────────────────────────────────────────────────
+    window.copyText = async function (btn, text) {
+        try {
+            await navigator.clipboard.writeText(text);
+            btn.title = 'Copied!';
+            setTimeout(() => { btn.title = 'Copy'; }, 2000);
+        } catch {}
+    };
+
+    // ─────────────────────────────────────────────────
+    //  UTILITIES
+    // ─────────────────────────────────────────────────
+    function escapeHtml(str) {
+        return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // Very basic markdown → HTML
+    function formatMarkdown(text) {
+        return text
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.+?)\*/g, '<em>$1</em>')
+            .replace(/`(.+?)`/g, '<code style="background:#2a2a2a;padding:2px 6px;border-radius:4px;font-family:monospace">$1</code>')
+            .replace(/\n/g, '<br>');
+    }
+
+    function generateId() {
+        return 'sess_' + Math.random().toString(36).slice(2, 11);
+    }
 });

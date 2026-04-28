@@ -94,7 +94,7 @@ try:
     )
     
     llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash",
+        model="gemini-2.5-pro",
         temperature=0.7,
         google_api_key=GOOGLE_API_KEY,
     )
