@@ -40,6 +40,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const goSignup    = document.getElementById('go-signup');
     const goLogin     = document.getElementById('go-login');
 
+    // Event Planner
+    const eventForm       = document.getElementById('event-form');
+    const eventResults    = document.getElementById('event-results');
+
     // Mobile sidebar
     const sidebar        = document.getElementById('sidebar');
     const menuToggle     = document.getElementById('menu-toggle');
@@ -59,6 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isProcessing = false;
     let sessionId = localStorage.getItem('sb_session') || generateId();
     localStorage.setItem('sb_session', sessionId);
+    let currentChatId = null;
 
     // ─────────────────────────────────────────────────
     //  INIT
@@ -71,6 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupServices();
     setupAuth();
     setupMobile();
+    setupEventPlanner();
 
     // ─────────────────────────────────────────────────
     //  NAVIGATION  (sidebar tabs)
@@ -158,13 +164,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
             typingEl.remove();
 
-            if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-            appendBotMessage(data.response);
-            saveHistory(message);
+            if (!res.ok) {
+                const userName = localStorage.getItem('sb_user') || 'there';
+                const errText = `Hello **${userName}**, I'm sorry — I encountered an error. Please try again.`;
+                appendBotMessage(errText);
+                saveHistory(message, errText);
+            } else {
+                appendBotMessage(data.response);
+                saveHistory(message, data.response);
+            }
 
         } catch (err) {
             typingEl.remove();
-            appendBotMessage(`⚠️ ${err.message || 'Something went wrong. Please try again.'}`);
+            const userName = localStorage.getItem('sb_user') || 'there';
+            const errText = `Hello **${userName}**, I'm sorry — I encountered an error. Please try again.`;
+            appendBotMessage(errText);
+            saveHistory(message, errText);
         } finally {
             isProcessing = false;
         }
@@ -305,27 +320,101 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        let currentDocId = null;
+
         // Submit
         pdfForm.addEventListener('submit', async e => {
             e.preventDefault();
             if (!pdfFileInput.files[0]) return;
 
+            pdfResults.style.display = 'none';
             pdfResults.innerHTML = `<div class="loader-text">Analyzing document…</div>`;
+            pdfSubmitBtn.disabled = true;
 
             const formData = new FormData();
-            formData.append('pdf', pdfFileInput.files[0]);
+            formData.append('file', pdfFileInput.files[0]);
 
             try {
-                const res  = await fetch('/api/pdf/summarize', { method: 'POST', body: formData });
+                const res  = await fetch('/api/pdf/summary', { method: 'POST', body: formData });
                 const data = await res.json();
+                if (!res.ok || data.error) {
+                    pdfResults.innerHTML = `<div class="loader-text">${data.error || 'Failed to analyze PDF.'}</div>`;
+                    pdfResults.style.display = 'block';
+                    pdfSubmitBtn.disabled = false;
+                    return;
+                }
+
+                currentDocId = data.doc_id;
+                const s = data.summary;
+
                 pdfResults.innerHTML = `
-                    <div class="result-card">
-                        <span class="result-card-title">📄 Document Summary</span>
-                        <p class="result-card-snippet" style="white-space:pre-wrap;">${data.summary || data.response || 'No summary returned.'}</p>
+                    <div class="pdf-summary">
+                        <h3>${data.filename} <span class="search-mode-tag">${data.search_mode === 'semantic' ? 'AI Semantic Search' : 'Keyword Search'}</span></h3>
+                        <div class="stats-grid">
+                            <div class="stat-card"><div class="stat-value">${s.total_pages}</div><div class="stat-label">Pages</div></div>
+                            <div class="stat-card"><div class="stat-value">${s.total_words.toLocaleString()}</div><div class="stat-label">Words</div></div>
+                            <div class="stat-card"><div class="stat-value">${s.total_paragraphs}</div><div class="stat-label">Paragraphs</div></div>
+                            <div class="stat-card"><div class="stat-value">${s.total_characters.toLocaleString()}</div><div class="stat-label">Characters</div></div>
+                        </div>
+                        <div class="section-title">Overview</div>
+                        <div class="overview-text">${s.overview}</div>
+                    </div>
+                    <div class="pdf-qa">
+                        <div class="pdf-qa-bar">
+                            <input type="text" id="pdf-question" class="pdf-question-input" placeholder="Ask a question about this document..." />
+                            <button id="pdf-ask-btn" class="btn-primary" style="width:auto;padding:10px 20px;">Ask</button>
+                        </div>
+                        <div id="pdf-answer" class="pdf-answer" style="display:none;"></div>
                     </div>
                 `;
+                pdfResults.style.display = 'block';
+
+                // Wire up Q&A
+                const askBtn = document.getElementById('pdf-ask-btn');
+                const questionInput = document.getElementById('pdf-question');
+                const answerDiv = document.getElementById('pdf-answer');
+
+                const doAsk = async () => {
+                    const q = questionInput.value.trim();
+                    if (!q || !currentDocId) return;
+                    askBtn.disabled = true;
+                    answerDiv.style.display = 'block';
+                    answerDiv.innerHTML = `<em>Searching…</em>`;
+                    try {
+                        const r = await fetch('/api/pdf/ask', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ question: q, doc_id: currentDocId })
+                        });
+                        const d = await r.json();
+                        if (d.error) {
+                            answerDiv.innerHTML = d.error;
+                        } else {
+                            const methodLabel = d.method === 'semantic' ? 'AI Semantic' : 'Keyword';
+                            const conf = d.confidence ? ` <span class="source-tag">Page ${d.best_page} · ${d.confidence}% match · ${methodLabel}</span>` : '';
+                            answerDiv.innerHTML = d.answer.replace(/\n\n/g, '<br><br>') + conf +
+                                `<div style="margin-top:12px;"><button id="pdf-again-btn" class="btn-link">Ask another question</button></div>`;
+                            document.getElementById('pdf-again-btn').addEventListener('click', () => {
+                                answerDiv.style.display = 'none';
+                                answerDiv.innerHTML = '';
+                                questionInput.value = '';
+                                questionInput.focus();
+                            });
+                        }
+                    } catch {
+                        answerDiv.innerHTML = 'Failed to search document.';
+                    }
+                    askBtn.disabled = false;
+                    questionInput.value = '';
+                };
+
+                askBtn.addEventListener('click', doAsk);
+                questionInput.addEventListener('keydown', e => { if (e.key === 'Enter') doAsk(); });
+
             } catch {
                 pdfResults.innerHTML = `<div class="loader-text">Failed to analyze PDF. Please try again.</div>`;
+                pdfResults.style.display = 'block';
+                pdfSubmitBtn.disabled = false;
             }
         });
     }
@@ -371,23 +460,238 @@ document.addEventListener('DOMContentLoaded', () => {
             servicesResults.innerHTML = `<div class="loader-text">No services found matching "${escapeHtml(query)}".</div>`;
             return;
         }
-        servicesResults.innerHTML = services.map(s => `
-            <div class="result-card">
+        servicesResults.innerHTML = services.map((s, i) => `
+            <div class="result-card" id="svc-card-${i}">
                 <span class="result-card-title">${s.title}</span>
                 <p class="result-card-snippet">${s.desc} — <strong>${s.price}</strong></p>
                 <div class="result-card-actions">
-                    <button class="btn-card">Book Now</button>
+                    <button class="btn-card" data-idx="${i}">Book Now</button>
                 </div>
             </div>
         `).join('');
+
+        servicesResults.querySelectorAll('.btn-card').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const idx = parseInt(btn.dataset.idx);
+                showBookingForm(services[idx], idx);
+            });
+        });
+    }
+
+    function showBookingForm(service, idx) {
+        const card = document.getElementById(`svc-card-${idx}`);
+        if (!card) return;
+        card.innerHTML = `
+            <span class="result-card-title">${service.title}</span>
+            <p class="result-card-snippet">${service.desc} — <strong>${service.price}</strong></p>
+            <form class="booking-form" id="booking-form-${idx}">
+                <input type="text" class="booking-input" name="name" placeholder="Full Name" required />
+                <input type="tel" class="booking-input" name="phone" placeholder="Phone Number" required pattern="[0-9+\\-\\s]{7,15}" />
+                <input type="email" class="booking-input" name="email" placeholder="Email Address" required />
+                <input type="date" class="booking-input" name="date" required />
+                <div class="booking-actions">
+                    <button type="submit" class="btn-card">Confirm Booking</button>
+                    <button type="button" class="btn-card btn-card-cancel" data-idx="${idx}">Cancel</button>
+                </div>
+            </form>
+        `;
+        card.querySelector(`#booking-form-${idx}`).addEventListener('submit', e => {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            showBookingConfirmation(service, {
+                name: fd.get('name'),
+                phone: fd.get('phone'),
+                email: fd.get('email'),
+                date: fd.get('date'),
+            }, idx);
+        });
+        card.querySelector(`.btn-card-cancel`).addEventListener('click', () => {
+            renderServiceCards([service], '');
+        });
+    }
+
+    function showBookingConfirmation(service, details, idx) {
+        const card = document.getElementById(`svc-card-${idx}`);
+        if (!card) return;
+        const dateStr = new Date(details.date + 'T00:00:00').toLocaleDateString('en-US', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        });
+        card.innerHTML = `
+            <div class="booking-confirmed">
+                <div class="booking-check">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22,4 12,14.01 9,11.01"/></svg>
+                </div>
+                <span class="result-card-title" style="color:var(--accent);">Booking Confirmed</span>
+                <div class="booking-details">
+                    <p><strong>Service:</strong> ${service.title}</p>
+                    <p><strong>Name:</strong> ${escapeHtml(details.name)}</p>
+                    <p><strong>Phone:</strong> ${escapeHtml(details.phone)}</p>
+                    <p><strong>Email:</strong> ${escapeHtml(details.email)}</p>
+                    <p><strong>Date:</strong> ${dateStr}</p>
+                    <p><strong>Cost:</strong> ${service.price}</p>
+                </div>
+                <p class="booking-note">A confirmation has been sent to ${escapeHtml(details.email)}. Our team will contact you shortly.</p>
+                <button class="btn-card" id="book-another-${idx}">Book Another Service</button>
+            </div>
+        `;
+        document.getElementById(`book-another-${idx}`).addEventListener('click', () => {
+            renderServiceCards(MOCK_SERVICES.filter(s => s.title === service.title), service.category);
+        });
+    }
+
+    // ─────────────────────────────────────────────────
+    //  EVENT PLANNER
+    // ─────────────────────────────────────────────────
+    function setupEventPlanner() {
+        if (!eventForm) return;
+        eventForm.addEventListener('submit', async e => {
+            e.preventDefault();
+            if (!eventResults) return;
+
+            const submitBtn = document.getElementById('event-submit-btn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Planning...';
+            eventResults.innerHTML = `<div class="loader-text">Planning your event...</div>`;
+
+            const payload = {
+                event_type: document.getElementById('event-type').value,
+                date: document.getElementById('event-date').value,
+                location: document.getElementById('event-city').value,
+                exactlocation: document.getElementById('event-address').value,
+                guest_count: parseInt(document.getElementById('event-guests').value) || 0,
+                total_budget: parseFloat(document.getElementById('event-budget').value) || 0,
+                special_requirements: document.getElementById('event-notes').value,
+                use_dummy: document.getElementById('event-dummy-mode')?.checked || false
+            };
+
+            try {
+                const res = await fetch('/api/event/plan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+
+                if (!res.ok || data.error) {
+                    eventResults.innerHTML = `
+                        <div class="result-card">
+                            <span class="result-card-title">AI Event Planner</span>
+                            <p class="result-card-snippet">${escapeHtml(data.error || 'Failed to generate plan.')}</p>
+                        </div>`;
+                } else {
+                    eventResults.innerHTML = `
+                        <div class="result-card">
+                            <span class="result-card-title">Your Event Plan</span>
+                            <p style="color:var(--accent);font-size:14px;margin-bottom:8px;">Estimated Cost Per Person: ₹${data.per_person ? data.per_person.toFixed(0) : 'N/A'}</p>
+                            <p class="result-card-snippet" style="white-space:pre-wrap;">${formatMarkdown(data.response)}</p>
+                        </div>`;
+                }
+            } catch {
+                eventResults.innerHTML = `<div class="loader-text">Something went wrong. Please try again.</div>`;
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Generate Plan';
+            }
+        });
     }
 
     // ─────────────────────────────────────────────────
     //  AUTH MODALS
     // ─────────────────────────────────────────────────
+    function showToast(msg, duration = 3000) {
+        const t = document.getElementById('toast');
+        if (!t) return;
+        t.textContent = msg;
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), duration);
+    }
+
+    function setLoggedInUser(name) {
+        localStorage.setItem('sb_user', name);
+        const nameEl = document.getElementById('sidebar-user-name');
+        const planEl = document.getElementById('sidebar-user-plan');
+        const avatarEl = document.querySelector('.user-avatar');
+        if (nameEl) nameEl.textContent = name;
+        if (planEl) planEl.textContent = 'Free plan';
+        if (avatarEl) avatarEl.textContent = name.charAt(0).toUpperCase();
+
+        document.getElementById('auth-logged-out').style.display = 'none';
+        document.getElementById('auth-logged-in').style.display = 'flex';
+        document.getElementById('topbar-username').textContent = name;
+
+        document.getElementById('mobile-auth-logged-out').style.display = 'none';
+        document.getElementById('mobile-auth-logged-in').style.display = 'flex';
+        document.getElementById('mobile-topbar-username').textContent = name;
+    }
+
+    function clearLoggedInUser() {
+        localStorage.removeItem('sb_user');
+        localStorage.removeItem('sb_session');
+        Object.keys(localStorage).forEach(key => {
+            if (key === 'sb_history') localStorage.removeItem(key);
+        });
+        // Reset session
+        sessionId = generateId();
+        localStorage.setItem('sb_session', sessionId);
+        // Clear chat area
+        if (chatArea) chatArea.innerHTML = '';
+        if (welcomeState) welcomeState.style.display = '';
+        // Reset sidebar
+        const nameEl = document.getElementById('sidebar-user-name');
+        const planEl = document.getElementById('sidebar-user-plan');
+        const avatarEl = document.querySelector('.user-avatar');
+        if (nameEl) nameEl.textContent = 'SmartBot';
+        if (planEl) planEl.textContent = 'Guest';
+        if (avatarEl) avatarEl.textContent = 'S';
+
+        document.getElementById('auth-logged-out').style.display = '';
+        document.getElementById('auth-logged-in').style.display = 'none';
+        document.getElementById('topbar-username').textContent = '';
+
+        document.getElementById('mobile-auth-logged-out').style.display = '';
+        document.getElementById('mobile-auth-logged-in').style.display = 'none';
+        document.getElementById('mobile-topbar-username').textContent = '';
+    }
+
+    function getStoredUsers() {
+        return JSON.parse(localStorage.getItem('sb_users') || '{}');
+    }
+
     function setupAuth() {
-        btnLogin?.addEventListener('click',  () => openModal('modal-login'));
-        btnSignup?.addEventListener('click', () => openModal('modal-signup'));
+        // Check if already logged in
+        const existing = localStorage.getItem('sb_user');
+        if (existing) setLoggedInUser(existing);
+
+        btnLogin?.addEventListener('click',  () => {
+            document.getElementById('login-error').className = 'auth-error';
+            document.getElementById('login-error').textContent = '';
+            openModal('modal-login');
+        });
+        document.getElementById('mobile-btn-login')?.addEventListener('click', () => {
+            document.getElementById('login-error').className = 'auth-error';
+            document.getElementById('login-error').textContent = '';
+            openModal('modal-login');
+        });
+        btnSignup?.addEventListener('click', () => {
+            document.getElementById('signup-error').className = 'auth-error';
+            document.getElementById('signup-error').textContent = '';
+            openModal('modal-signup');
+        });
+        document.getElementById('mobile-btn-signup')?.addEventListener('click', () => {
+            document.getElementById('signup-error').className = 'auth-error';
+            document.getElementById('signup-error').textContent = '';
+            openModal('modal-signup');
+        });
+
+        // Logout button
+        document.getElementById('btn-logout')?.addEventListener('click', () => {
+            clearLoggedInUser();
+            showToast('Logged out successfully');
+        });
+        document.getElementById('mobile-btn-logout')?.addEventListener('click', () => {
+            clearLoggedInUser();
+            showToast('Logged out successfully');
+        });
 
         // Close buttons
         document.querySelectorAll('.modal-close').forEach(btn => {
@@ -402,20 +706,80 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // Switch links
-        goSignup?.addEventListener('click', e => { e.preventDefault(); closeModal('modal-login'); openModal('modal-signup'); });
-        goLogin?.addEventListener('click',  e => { e.preventDefault(); closeModal('modal-signup'); openModal('modal-login'); });
-
-        // Form submissions (stub)
-        loginForm?.addEventListener('submit', e => {
+        goSignup?.addEventListener('click', e => {
             e.preventDefault();
-            alert(`Welcome back, ${document.getElementById('login-email').value}!`);
             closeModal('modal-login');
+            openModal('modal-signup');
         });
-        signupForm?.addEventListener('submit', e => {
+        goLogin?.addEventListener('click', e => {
             e.preventDefault();
-            alert(`Account created for ${document.getElementById('signup-name').value}! Please log in.`);
             closeModal('modal-signup');
             openModal('modal-login');
+        });
+
+        // Login
+        loginForm?.addEventListener('submit', e => {
+            e.preventDefault();
+            const errEl = document.getElementById('login-error');
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value;
+            const users = getStoredUsers();
+
+            if (!users[email]) {
+                errEl.className = 'auth-error error';
+                errEl.textContent = 'No account found with this email.';
+                return;
+            }
+            if (users[email].password !== password) {
+                errEl.className = 'auth-error error';
+                errEl.textContent = 'Incorrect password. Please try again.';
+                return;
+            }
+
+            errEl.className = 'auth-error';
+            closeModal('modal-login');
+            setLoggedInUser(users[email].name);
+            showToast('Welcome back, ' + users[email].name + '!');
+            document.getElementById('login-form').reset();
+        });
+
+        // Signup
+        signupForm?.addEventListener('submit', e => {
+            e.preventDefault();
+            const errEl = document.getElementById('signup-error');
+            const name = document.getElementById('signup-name').value.trim();
+            const email = document.getElementById('signup-email').value.trim().toLowerCase();
+            const password = document.getElementById('signup-password').value;
+            const users = getStoredUsers();
+
+            if (users[email]) {
+                errEl.className = 'auth-error error';
+                errEl.textContent = 'An account with this email already exists.';
+                return;
+            }
+
+            users[email] = { name, password };
+            localStorage.setItem('sb_users', JSON.stringify(users));
+
+            errEl.className = 'auth-error success';
+            errEl.textContent = 'Account created! Please log in.';
+            signupForm.reset();
+
+            setTimeout(() => {
+                closeModal('modal-signup');
+                openModal('modal-login');
+                document.getElementById('login-email').value = email;
+                errEl.className = 'auth-error';
+            }, 1200);
+        });
+
+        // Sidebar user card click to logout
+        document.getElementById('user-card-btn')?.addEventListener('click', () => {
+            const user = localStorage.getItem('sb_user');
+            if (user) {
+                clearLoggedInUser();
+                showToast('Logged out successfully');
+            }
         });
     }
 
@@ -446,23 +810,93 @@ document.addEventListener('DOMContentLoaded', () => {
         renderHistory(history);
     }
 
-    function saveHistory(message) {
-        const history = getHistory();
-        const title = message.length > 32 ? message.slice(0, 32) + '…' : message;
-        history.unshift({ id: Date.now(), title, ts: new Date().toISOString() });
-        localStorage.setItem('sb_history', JSON.stringify(history.slice(0, 50)));
-        renderHistory(history);
-    }
-
     function getHistory() {
         return JSON.parse(localStorage.getItem('sb_history') || '[]');
+    }
+
+    function saveHistory(message, response) {
+        const history = getHistory();
+
+        if (currentChatId) {
+            const entry = history.find(h => h.id === currentChatId);
+            if (entry) {
+                entry.messages = entry.messages || [];
+                entry.messages.push({ role: 'user', text: message });
+                entry.messages.push({ role: 'bot', text: response });
+                entry.title = entry.messages[0].text.length > 32 ? entry.messages[0].text.slice(0, 32) + '…' : entry.messages[0].text;
+                localStorage.setItem('sb_history', JSON.stringify(history.slice(0, 50)));
+                renderHistory(history);
+                return;
+            }
+        }
+
+        const title = message.length > 32 ? message.slice(0, 32) + '…' : message;
+        const entry = { id: Date.now(), title, ts: new Date().toISOString(), messages: [{ role: 'user', text: message }, { role: 'bot', text: response }] };
+        currentChatId = entry.id;
+        history.unshift(entry);
+        localStorage.setItem('sb_history', JSON.stringify(history.slice(0, 50)));
+        renderHistory(history);
     }
 
     function renderHistory(history) {
         if (!historyList) return;
         historyList.innerHTML = history.map(item => `
-            <div class="history-item" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</div>
+            <div class="history-item" data-id="${item.id}" data-title="${escapeHtml(item.title)}" title="${escapeHtml(item.title)}">
+                <span class="history-item-text">${escapeHtml(item.title)}</span>
+                <button class="history-delete-btn" data-id="${item.id}" title="Delete">&times;</button>
+            </div>
         `).join('') || '<div style="padding:8px 12px;font-size:13px;color:var(--text-dim)">No chats yet</div>';
+
+        historyList.querySelectorAll('.history-item').forEach(el => {
+            el.addEventListener('click', (e) => {
+                if (e.target.closest('.history-delete-btn')) return;
+                switchView('chat');
+                if (window.innerWidth <= 768) closeSidebar();
+                const chatId = parseInt(el.dataset.id);
+                loadChatById(chatId);
+            });
+        });
+
+        historyList.querySelectorAll('.history-delete-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const chatId = parseInt(btn.dataset.id);
+                deleteChatById(chatId);
+            });
+        });
+    }
+
+    function loadChatById(chatId) {
+        const history = getHistory();
+        const entry = history.find(h => h.id === chatId);
+        if (!entry) return;
+
+        currentChatId = chatId;
+        messagesContainer.innerHTML = '';
+        if (welcomeState) welcomeState.style.display = 'none';
+
+        if (entry.messages && entry.messages.length) {
+            entry.messages.forEach(msg => {
+                if (msg.role === 'user') {
+                    appendUserMessage(msg.text);
+                } else {
+                    appendBotMessage(msg.text);
+                }
+            });
+        } else {
+            appendUserMessage(entry.title);
+            appendBotMessage('This is an older conversation. Messages were not saved. Please type a new question.');
+        }
+    }
+
+    function deleteChatById(chatId) {
+        const history = getHistory();
+        const updated = history.filter(h => h.id !== chatId);
+        localStorage.setItem('sb_history', JSON.stringify(updated));
+        renderHistory(updated);
+
+        messagesContainer.innerHTML = '';
+        if (welcomeState) welcomeState.style.display = '';
     }
 
     // ─────────────────────────────────────────────────
@@ -474,6 +908,7 @@ document.addEventListener('DOMContentLoaded', () => {
         chatInput.value = '';
         chatInput.style.height = 'auto';
         sendBtn.disabled = true;
+        currentChatId = null;
         sessionId = generateId();
         localStorage.setItem('sb_session', sessionId);
         switchView('chat');

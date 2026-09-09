@@ -9,3 +9,5 @@ faiss_index/
 brain/
 artifacts/
 *.log
+smartbot_new_env/
+.vercel

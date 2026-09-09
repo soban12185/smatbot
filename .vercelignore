@@ -1,0 +1,8 @@
+__pycache__
+*.pyc
+smartbot_new_env/
+.git/
+.gitignore
+README.md
+.vscode/
+uploads/

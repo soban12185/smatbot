@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script defer src="https://va.vercel-scripts.com/insights/script.js"></script>
 </head>
 <body>
 
@@ -17,9 +18,16 @@
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
     </button>
     <span class="mobile-title">SmartBot</span>
-    <button class="icon-btn" onclick="startNewChat()">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-    </button>
+    <div class="mobile-auth">
+        <div id="mobile-auth-logged-out">
+            <button id="mobile-btn-login" class="btn-ghost btn-sm">Log in</button>
+            <button id="mobile-btn-signup" class="btn-solid btn-sm">Sign up</button>
+        </div>
+        <div id="mobile-auth-logged-in" style="display:none;align-items:center;gap:8px;">
+            <span id="mobile-topbar-username" style="font-size:13px;color:var(--text);"></span>
+            <button id="mobile-btn-logout" class="btn-ghost btn-sm" style="color:#f87171;">Log out</button>
+        </div>
+    </div>
 </div>
 
 <!-- Sidebar Overlay (mobile) -->
@@ -34,9 +42,6 @@
                 <div class="logo-icon">S</div>
                 <span class="app-name">SmartBot</span>
             </div>
-            <button class="icon-btn" title="New Chat" onclick="startNewChat()">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            </button>
         </div>
 
         <nav class="sidebar-nav">
@@ -56,19 +61,26 @@
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
                 <span>Services</span>
             </button>
+            <button class="nav-btn" data-mode="events">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                <span>Event Planner</span>
+            </button>
         </nav>
 
         <div class="history-section">
-            <div class="history-label">Recent chats</div>
+            <div class="history-header">
+                <div class="history-label">Recent chats</div>
+                <button class="new-chat-btn" onclick="startNewChat()" title="New chat">+</button>
+            </div>
             <div id="history-list" class="history-list"></div>
         </div>
 
         <div class="sidebar-footer">
-            <div class="user-card">
+            <div class="user-card" id="user-card-btn">
                 <div class="user-avatar">S</div>
                 <div class="user-info">
-                    <div class="user-name">Soban Soban</div>
-                    <div class="user-plan">Free plan</div>
+                    <div class="user-name" id="sidebar-user-name">SmartBot</div>
+                    <div class="user-plan" id="sidebar-user-plan">Guest</div>
                 </div>
             </div>
         </div>
@@ -84,8 +96,14 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
             </div>
             <div class="top-bar-actions">
-                <button id="btn-login" class="btn-ghost">Log in</button>
-                <button id="btn-signup" class="btn-solid">Sign up</button>
+                <div id="auth-logged-out">
+                    <button id="btn-login" class="btn-ghost">Log in</button>
+                    <button id="btn-signup" class="btn-solid">Sign up</button>
+                </div>
+                <div id="auth-logged-in" style="display:none;align-items:center;gap:12px;">
+                    <span id="topbar-username" style="font-size:14px;color:var(--text);"></span>
+                    <button id="btn-logout" class="btn-ghost" style="color:#f87171;">Log out</button>
+                </div>
             </div>
         </header>
 
@@ -117,14 +135,11 @@
             <!-- Input Bar -->
             <div class="input-bar-wrapper">
                 <form id="chat-form" class="input-bar">
-                    <button type="button" class="input-action-btn" id="attach-btn" title="Attach file">
+                    <button type="button" class="input-action-btn" title="New Chat" onclick="startNewChat()">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
                     </button>
                     <textarea id="chat-input" class="chat-textarea" placeholder="Ask anything…" rows="1" autocomplete="off"></textarea>
                     <div class="input-right-actions">
-                        <button type="button" class="input-action-btn" title="Voice input">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
-                        </button>
                         <button type="submit" class="send-btn" id="send-btn" disabled>
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
                         </button>
@@ -165,12 +180,21 @@
                     <div class="drop-zone" id="drop-zone">
                         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                         <p class="drop-title">Drop your PDF here or <span class="drop-link">click to upload</span></p>
-                        <p class="drop-sub">Supports PDF files up to 10MB</p>
+                        <p class="drop-sub">Supports PDF files up to 20 pages</p>
                         <input type="file" id="pdf-file-input" accept=".pdf" hidden>
                     </div>
                     <button type="submit" class="btn-primary" id="pdf-submit-btn" disabled>Analyze Document</button>
                 </form>
-                <div id="pdf-results" class="results-grid"></div>
+                <div id="pdf-results" class="pdf-analyzer-output" style="display:none;">
+                    <div id="pdf-summary" class="pdf-summary"></div>
+                    <div id="pdf-qa" class="pdf-qa">
+                        <div class="pdf-qa-bar">
+                            <input type="text" id="pdf-question" class="pdf-question-input" placeholder="Ask a question about this document..." />
+                            <button id="pdf-ask-btn" class="btn-primary" disabled>Ask</button>
+                        </div>
+                        <div id="pdf-answer" class="pdf-answer" style="display:none;"></div>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -194,8 +218,66 @@
             </div>
         </section>
 
+        <!-- ── EVENT PLANNER VIEW ── -->
+        <section id="view-events" class="view">
+            <div class="centered-view">
+                <div class="view-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                </div>
+                <h2 class="view-title">AI Event Planner</h2>
+                <form id="event-form" class="event-form">
+                    <div class="event-form-grid">
+                        <div class="form-group">
+                            <label for="event-type">Event Type</label>
+                            <select id="event-type">
+                                <option value="Wedding">Wedding</option>
+                                <option value="Birthday">Birthday</option>
+                                <option value="Party">Party</option>
+                                <option value="Conference">Conference</option>
+                                <option value="Corporate">Corporate</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="event-date">Event Date</label>
+                            <input type="date" id="event-date" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="event-city">City</label>
+                            <input type="text" id="event-city" placeholder="e.g. Chennai" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="event-address">Venue Area</label>
+                            <input type="text" id="event-address" placeholder="e.g. Anna Nagar">
+                        </div>
+                        <div class="form-group">
+                            <label for="event-guests">Guest Count</label>
+                            <input type="number" id="event-guests" min="1" placeholder="100" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="event-budget">Total Budget (INR)</label>
+                            <input type="number" id="event-budget" min="1000" step="1000" placeholder="500000" required>
+                        </div>
+                    </div>
+                    <div class="form-group" style="width:100%;max-width:620px;">
+                        <label for="event-notes">Special Requirements</label>
+                        <textarea id="event-notes" rows="3" placeholder="e.g. Vegetarian food, live band, specific theme..."></textarea>
+                    </div>
+                    <label class="toggle-label" style="max-width:620px;width:100%;display:flex;align-items:center;gap:10px;cursor:pointer;">
+                        <input type="checkbox" id="event-dummy-mode" style="width:18px;height:18px;cursor:pointer;">
+                        <span style="font-size:13px;color:var(--text-muted);">Demo Mode (skip AI, use sample plan)</span>
+                    </label>
+                    <button type="submit" class="btn-primary" id="event-submit-btn" style="max-width:620px;width:100%;">Generate Plan</button>
+                </form>
+                <div id="event-results" class="results-grid" style="margin-top:24px;"></div>
+            </div>
+        </section>
+
     </main>
 </div>
+
+<!-- ── TOAST ── -->
+<div class="toast" id="toast"></div>
 
 <!-- ── LOGIN MODAL ── -->
 <div class="modal-overlay" id="modal-login">
@@ -211,7 +293,8 @@
                 <label for="login-password">Password</label>
                 <input type="password" id="login-password" placeholder="••••••••" required>
             </div>
-            <button type="submit" class="btn-primary">Continue</button>
+            <div class="auth-error" id="login-error"></div>
+            <button type="submit" class="btn-primary" id="login-submit-btn">Continue</button>
         </form>
         <p class="modal-switch">No account? <a href="#" id="go-signup">Sign up</a></p>
     </div>
@@ -233,9 +316,10 @@
             </div>
             <div class="form-group">
                 <label for="signup-password">Password</label>
-                <input type="password" id="signup-password" placeholder="••••••••" required>
+                <input type="password" id="signup-password" placeholder="Min 6 characters" minlength="6" required>
             </div>
-            <button type="submit" class="btn-primary">Create account</button>
+            <div class="auth-error" id="signup-error"></div>
+            <button type="submit" class="btn-primary" id="signup-submit-btn">Create account</button>
         </form>
         <p class="modal-switch">Already have an account? <a href="#" id="go-login">Log in</a></p>
     </div>
